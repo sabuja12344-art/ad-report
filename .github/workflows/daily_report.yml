@@ -1,0 +1,35 @@
+name: 광고 보고서 자동 수집
+
+on:
+  schedule:
+    # 매일 오전 8시 (KST) = UTC 23:00 (전날)
+    - cron: '0 23 * * *'
+  workflow_dispatch:  # 수동 실행 버튼
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 구글 서비스 계정 키 생성
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > google_credentials.json
+
+      - name: 광고 데이터 수집
+        env:
+          NAVER_API_KEY:       ${{ secrets.NAVER_API_KEY }}
+          NAVER_SECRET_KEY:    ${{ secrets.NAVER_SECRET_KEY }}
+          META_ACCESS_TOKEN:   ${{ secrets.META_ACCESS_TOKEN }}
+          GOOGLE_JSON_PATH:    google_credentials.json
+        run: python main.py

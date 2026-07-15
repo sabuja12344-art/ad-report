@@ -1,0 +1,21 @@
+advertisers:
+  - name: 샐러디
+    naver_customer_id: null           # 보류 - API 키 수령 후 활성화
+    meta_ad_account_id: "1080197689976095"
+    meta_conversion_event: "offsite_conversion.fb_pixel_complete_registration"
+    meta_campaign_exclude:
+      - "26년_샐러디_도달"
+      - "26년_샐러디_참여"
+      - "26년_멤버십 광고_트래픽"
+    sheet_id: "1hS3OwMWh_cPXWwO4chs1SOn_j7EflgeHUE0idRu9Yp4"
+    raw_tab: "(RAW)"
+
+  - name: 맘시터
+    naver_customer_id: null           # 네이버 없음
+    meta_ad_account_id: "10204539929520373"
+    meta_conversion_event: "offsite_conversion.fb_pixel_complete_registration"
+    meta_extra_events:
+      - name: "구매"
+        event: "offsite_conversion.fb_pixel_purchase"
+    sheet_id: "1hzYm9cYQUJFb2l1BpCp3kZN2SC5mYfIwxlKx-XzmvB8"
+    raw_tab: "(RAW)"
