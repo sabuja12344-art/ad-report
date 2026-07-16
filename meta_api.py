@@ -3,6 +3,39 @@ import requests
 API_VERSION = "v19.0"
 BASE_URL    = f"https://graph.facebook.com/{API_VERSION}"
 
+def get_ad_thumbnails(ad_account_id, access_token):
+    url = f"{BASE_URL}/act_{ad_account_id}/ads"
+    params = {
+        "fields": "name,creative{thumbnail_url,image_url,picture,object_story_spec{link_data{picture},photo_data{url}}}",
+        "access_token": access_token,
+        "limit": 500,
+    }
+    thumbnails = {}
+    try:
+        while url:
+            r = requests.get(url, params=params, timeout=30)
+            r.raise_for_status()
+            data = r.json()
+            for ad in data.get("data", []):
+                name     = ad.get("name", "")
+                creative = ad.get("creative", {})
+                spec     = creative.get("object_story_spec", {})
+                thumb = (
+                    creative.get("image_url")
+                    or creative.get("thumbnail_url")
+                    or creative.get("picture")
+                    or spec.get("link_data", {}).get("picture")
+                    or spec.get("photo_data", {}).get("url")
+                    or ""
+                )
+                if name and thumb:
+                    thumbnails[name] = thumb
+            url    = data.get("paging", {}).get("next")
+            params = {}
+    except Exception as e:
+        print(f"[썸네일 오류] {e}")
+    return thumbnails
+
 FIELDS = "campaign_name,adset_name,ad_name,impressions,clicks,spend,actions"
 
 def get_report(ad_account_id, access_token, date, conversion_event="purchase", campaign_exclude=None, extra_events=None):

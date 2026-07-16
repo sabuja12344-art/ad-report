@@ -1,6 +1,20 @@
+users:
+  admin:
+    password: "ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270"
+    role: admin
+    advertiser: null
+  sallady:
+    password: "acd85c5dc50b04d74e24c175726534485a9e7f84da0c0aad2c477e90a274ca57"
+    role: advertiser
+    advertiser: "샐러디"
+  momsitter:
+    password: "780d1bd586091289cc2b10b5c4b1f291829d535d0fac824a5ea381c596acccb4"
+    role: advertiser
+    advertiser: "맘시터"
+
 advertisers:
   - name: 샐러디
-    naver_customer_id: null           # 보류 - API 키 수령 후 활성화
+    naver_customer_id: 1167625
     meta_ad_account_id: "1080197689976095"
     meta_conversion_event: "offsite_conversion.fb_pixel_complete_registration"
     meta_campaign_exclude:

@@ -1,0 +1,289 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import yaml
+import os
+import hashlib
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from meta_api import get_report as meta_get_report, get_ad_thumbnails
+
+load_dotenv()
+
+st.set_page_config(page_title="광고 대시보드", layout="wide", page_icon="📊")
+
+# ── 설정 로드 ──────────────────────────────────────────
+@st.cache_resource
+def load_config():
+    with open("config.yaml", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+config = load_config()
+
+# ── 인증 ───────────────────────────────────────────────
+def hash_pw(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def get_users():
+    try:
+        return dict(st.secrets["users"])
+    except Exception:
+        return config.get("users", {})
+
+def do_login(username, password):
+    users = get_users()
+    u = users.get(username)
+    if u and u["password"] == hash_pw(password):
+        return u
+    return None
+
+if "logged_in" not in st.session_state:
+    st.session_state.update(logged_in=False, username=None, user_info=None)
+
+if not st.session_state.logged_in:
+    _, col, _ = st.columns([1, 1, 1])
+    with col:
+        st.markdown("## 📊 광고 대시보드")
+        st.divider()
+        with st.form("login"):
+            uname = st.text_input("아이디")
+            pw    = st.text_input("비밀번호", type="password")
+            if st.form_submit_button("로그인", use_container_width=True):
+                user = do_login(uname, pw)
+                if user:
+                    st.session_state.update(logged_in=True, username=uname, user_info=user)
+                    st.rerun()
+                else:
+                    st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
+    st.stop()
+
+# ── 권한별 광고주 목록 ─────────────────────────────────
+user_info = st.session_state.user_info
+is_admin  = user_info.get("role") == "admin"
+adv_list  = config["advertisers"]
+visible   = adv_list if is_admin else [a for a in adv_list if a["name"] == user_info.get("advertiser")]
+
+if not visible:
+    st.error("접근 가능한 광고주가 없습니다.")
+    st.stop()
+
+# ── 사이드바 ───────────────────────────────────────────
+with st.sidebar:
+    st.title("📊 광고 대시보드")
+    st.caption(f"로그인: {st.session_state.username}")
+    if st.button("로그아웃", use_container_width=True):
+        st.session_state.update(logged_in=False, username=None, user_info=None)
+        st.rerun()
+    st.divider()
+
+    if is_admin and len(visible) > 1:
+        selected_name = st.selectbox("광고주", [a["name"] for a in visible])
+    else:
+        selected_name = visible[0]["name"]
+        st.markdown(f"**{selected_name}**")
+
+    adv = next(a for a in adv_list if a["name"] == selected_name)
+
+    st.divider()
+    c1, c2 = st.columns(2)
+    with c1:
+        start_date = st.date_input("시작일", datetime.now() - timedelta(days=7))
+    with c2:
+        end_date = st.date_input("종료일", datetime.now() - timedelta(days=1))
+
+    if (end_date - start_date).days > 30:
+        st.warning("최대 30일까지 조회 가능합니다.")
+        st.stop()
+    if start_date > end_date:
+        st.error("시작일이 종료일보다 늦을 수 없습니다.")
+        st.stop()
+
+    if st.button("🔄 새로고침", use_container_width=True):
+        st.cache_data.clear()
+
+# ── 데이터 수집 ────────────────────────────────────────
+def get_token():
+    try:
+        if "META_ACCESS_TOKEN" in st.secrets:
+            return st.secrets["META_ACCESS_TOKEN"]
+    except Exception:
+        pass
+    return os.environ.get("META_ACCESS_TOKEN", "")
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_thumbnails(ad_account_id):
+    return get_ad_thumbnails(ad_account_id, get_token())
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_range(ad_account_id, start_str, end_str, conversion_event, campaign_exclude, extra_events):
+    token = get_token()
+    rows, cur = [], datetime.strptime(start_str, "%Y-%m-%d")
+    end = datetime.strptime(end_str, "%Y-%m-%d")
+    while cur <= end:
+        rows.extend(meta_get_report(ad_account_id, token, cur.strftime("%Y-%m-%d"),
+                                    conversion_event, campaign_exclude, extra_events))
+        cur += timedelta(days=1)
+    return rows
+
+with st.spinner("데이터 불러오는 중..."):
+    rows = fetch_range(
+        adv["meta_ad_account_id"],
+        start_date.strftime("%Y-%m-%d"),
+        end_date.strftime("%Y-%m-%d"),
+        adv.get("meta_conversion_event", "purchase"),
+        adv.get("meta_campaign_exclude"),
+        adv.get("meta_extra_events"),
+    )
+
+if not rows:
+    st.warning("해당 기간에 데이터가 없습니다.")
+    st.stop()
+
+df = pd.DataFrame(rows)
+df["날짜"] = pd.to_datetime(df["날짜"]).dt.date
+df["비용"] = df["비용"].astype(float)
+extra_cols = [e["name"] for e in (adv.get("meta_extra_events") or [])]
+
+# ── 헬퍼 ───────────────────────────────────────────────
+def build_agg(source_df, group_cols):
+    agg = {"비용":"sum", "노출":"sum", "클릭":"sum", "전환수":"sum"}
+    for ec in extra_cols:
+        if ec in source_df.columns:
+            agg[ec] = "sum"
+    result = source_df.groupby(group_cols).agg(**{k:(k,v) for k,v in agg.items()}).reset_index()
+    result["CPA"] = result.apply(lambda r: round(r["비용"]/r["전환수"]) if r["전환수"]>0 else 0, axis=1)
+    result["CTR"] = result.apply(lambda r: round(r["클릭"]/r["노출"]*100,2) if r["노출"]>0 else 0, axis=1)
+    return result.sort_values("비용", ascending=False)
+
+def col_fmt():
+    d = {"비용":"₩{:,.0f}", "CPA":"₩{:,.0f}", "노출":"{:,}", "클릭":"{:,}", "전환수":"{:,}", "CTR":"{:.2f}%"}
+    for ec in extra_cols:
+        d[ec] = "{:,}"
+    return d
+
+# ── KPI ────────────────────────────────────────────────
+total_cost = df["비용"].sum()
+total_cnv  = df["전환수"].sum()
+total_clk  = df["클릭"].sum()
+total_imp  = df["노출"].sum()
+avg_cpa    = round(total_cost / total_cnv) if total_cnv > 0 else 0
+ctr        = round(total_clk / total_imp * 100, 2) if total_imp > 0 else 0
+
+daily = df.groupby("날짜").agg(비용=("비용","sum"), 전환수=("전환수","sum"), 클릭=("클릭","sum")).reset_index()
+daily["CPA"] = daily.apply(lambda r: round(r["비용"]/r["전환수"]) if r["전환수"]>0 else 0, axis=1)
+
+# ── 헤더 + 탭 ──────────────────────────────────────────
+st.title(f"{selected_name} 광고 성과")
+st.caption(f"{start_date} ~ {end_date}")
+
+tab1, tab2, tab3 = st.tabs(["📈 전체 성과", "🎯 캠페인별", "🖼️ 소재별"])
+
+# ── Tab1: 전체 성과 ────────────────────────────────────
+with tab1:
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("총 비용",    f"₩{total_cost:,.0f}")
+    c2.metric("총 전환수",  f"{total_cnv:,}건")
+    c3.metric("전환당비용", f"₩{avg_cpa:,}")
+    c4.metric("총 클릭",    f"{total_clk:,}")
+    c5.metric("CTR",        f"{ctr}%")
+
+    if extra_cols:
+        st.divider()
+        ecols = st.columns(len(extra_cols))
+        for i, ec in enumerate(extra_cols):
+            if ec in df.columns:
+                ecols[i].metric(ec, f"{int(df[ec].sum()):,}건")
+
+    st.divider()
+    ch1, ch2 = st.columns(2)
+    with ch1:
+        fig = px.bar(daily, x="날짜", y="비용", title="일별 비용",
+                     color_discrete_sequence=["#4C8BF5"])
+        fig.update_layout(showlegend=False, height=300, margin=dict(t=40,b=0))
+        fig.update_yaxes(tickformat=",.0f")
+        st.plotly_chart(fig, use_container_width=True)
+    with ch2:
+        fig2 = go.Figure()
+        fig2.add_bar(x=daily["날짜"], y=daily["전환수"], name="전환수", marker_color="#34A853")
+        fig2.add_scatter(x=daily["날짜"], y=daily["CPA"], name="CPA", yaxis="y2",
+                         line=dict(color="#EA4335", width=2), mode="lines+markers")
+        fig2.update_layout(
+            title="일별 전환수 / CPA",
+            yaxis=dict(title="전환수"),
+            yaxis2=dict(title="CPA(₩)", overlaying="y", side="right", tickformat=",.0f"),
+            height=300, margin=dict(t=40,b=0),
+            legend=dict(orientation="h", y=-0.2),
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+
+# ── Tab2: 캠페인별 ─────────────────────────────────────
+with tab2:
+    st.subheader("캠페인별 성과")
+    camp = build_agg(df, "캠페인이름")
+    st.dataframe(camp.style.format(col_fmt()), use_container_width=True, hide_index=True)
+
+    fig3 = px.bar(camp.head(10), x="비용", y="캠페인이름", orientation="h",
+                  title="캠페인별 비용", color_discrete_sequence=["#4C8BF5"])
+    fig3.update_layout(height=350, margin=dict(t=40,b=0))
+    fig3.update_xaxes(tickformat=",.0f")
+    st.plotly_chart(fig3, use_container_width=True)
+
+# ── Tab3: 소재별 ───────────────────────────────────────
+with tab3:
+    st.subheader("소재별 성과")
+
+    camps = ["전체"] + sorted(df["캠페인이름"].unique().tolist())
+    sel_camp = st.selectbox("캠페인 선택", camps)
+    df_f = df if sel_camp == "전체" else df[df["캠페인이름"] == sel_camp]
+
+    creative = build_agg(df_f, ["캠페인이름", "광고그룹(세트)이름", "광고이름"])
+
+    # 썸네일 로드
+    with st.spinner("소재 이미지 불러오는 중..."):
+        thumbnails = fetch_thumbnails(adv["meta_ad_account_id"])
+
+    # 이미지가 있는 소재만 카드형으로 표시
+    has_thumb = [(row, thumbnails.get(row["광고이름"], "")) for _, row in creative.iterrows()]
+    with_img  = [(r, t) for r, t in has_thumb if t]
+    no_img    = [r for r, t in has_thumb if not t]
+
+    if with_img:
+        st.markdown("#### 소재 미리보기")
+        COLS = 5
+        for i in range(0, len(with_img), COLS):
+            cols = st.columns(COLS)
+            for j, (row, thumb) in enumerate(with_img[i:i+COLS]):
+                with cols[j]:
+                    name = row["광고이름"]
+                    st.markdown(
+                        f'<img src="{thumb}" style="'
+                        f'width:100%;aspect-ratio:1/1;object-fit:cover;'
+                        f'border-radius:8px;display:block;">',
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(f"{name[:22]}{'…' if len(name)>22 else ''}")
+                    st.markdown(
+                        f"<small>💰 ₩{row['비용']:,.0f}<br>"
+                        f"🎯 {row['전환수']:,}건 · CPA ₩{row['CPA']:,}</small>",
+                        unsafe_allow_html=True,
+                    )
+        st.divider()
+
+    # 전체 성과 테이블
+    st.markdown("#### 소재별 성과 테이블")
+    st.dataframe(creative.style.format(col_fmt()), use_container_width=True, hide_index=True)
+
+    top10 = creative.nlargest(10, "비용")
+    fig4 = px.bar(top10, x="비용", y="광고이름", orientation="h",
+                  title="소재별 비용 상위 10개", color_discrete_sequence=["#4C8BF5"],
+                  hover_data=["캠페인이름", "전환수", "CPA"])
+    fig4.update_layout(height=max(300, len(top10)*40), margin=dict(t=40,b=0))
+    fig4.update_xaxes(tickformat=",.0f")
+    st.plotly_chart(fig4, use_container_width=True)
+
+# ── 원본 데이터 ────────────────────────────────────────
+with st.expander("원본 데이터 보기"):
+    st.dataframe(df.sort_values(["날짜","캠페인이름"]), use_container_width=True, hide_index=True)
+    csv = df.to_csv(index=False, encoding="utf-8-sig")
+    st.download_button("CSV 다운로드", csv, f"{selected_name}_{start_date}_{end_date}.csv", "text/csv")

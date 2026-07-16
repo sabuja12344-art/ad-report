@@ -3,3 +3,6 @@ gspread
 google-auth
 pyyaml
 python-dotenv
+streamlit
+plotly
+pandas
