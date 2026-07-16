@@ -1,14 +1,10 @@
+import time
 import gspread
 from google.oauth2.service_account import Credentials
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
-]
-
-COLUMNS = [
-    "날짜", "캠페인이름", "광고그룹(세트)이름",
-    "광고이름", "노출", "클릭", "비용", "전환수", "전환당비용",
 ]
 
 def _col_letter(n):
@@ -27,27 +23,36 @@ def _build_columns(rows):
     extra = [k for k in (rows[0].keys() if rows else []) if k not in base]
     return base + extra
 
+def _with_retry(fn, retries=4):
+    for attempt in range(retries):
+        try:
+            return fn()
+        except Exception as e:
+            if attempt < retries - 1:
+                wait = 2 ** attempt
+                print(f"    [구글 시트 재시도 {attempt+1}/{retries}] {wait}초 후 재시도...")
+                time.sleep(wait)
+            else:
+                raise
+
 def append_rows(client, sheet_id, tab_name, rows):
     if not rows:
         return
 
-    ws = client.open_by_key(sheet_id).worksheet(tab_name)
+    ws = _with_retry(lambda: client.open_by_key(sheet_id).worksheet(tab_name))
 
-    # 1행에서 "메타" 헤더가 있는 열 찾기 (없으면 1열 = A열)
-    first_row = ws.row_values(1)
+    first_row = _with_retry(lambda: ws.row_values(1))
     start_col = 1
     for i, v in enumerate(first_row):
         if "메타" in str(v):
             start_col = i + 1
             break
 
-    # 해당 열의 마지막 데이터 행 찾기
-    col_vals = ws.col_values(start_col)
-    last_row = len(col_vals)  # gspread가 빈 행 자동 제거
-
-    next_row = last_row + 1
+    col_vals = _with_retry(lambda: ws.col_values(start_col))
+    last_row  = len(col_vals)
+    next_row  = last_row + 1
     range_name = f"{_col_letter(start_col)}{next_row}"
 
     columns = _build_columns(rows)
-    data = [[row.get(col, "") for col in columns] for row in rows]
-    ws.update(range_name, data, value_input_option="USER_ENTERED")
+    data    = [[row.get(col, "") for col in columns] for row in rows]
+    _with_retry(lambda: ws.update(range_name, data, value_input_option="USER_ENTERED"))

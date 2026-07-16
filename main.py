@@ -71,8 +71,11 @@ def main():
 
         # 구글 시트 기입
         if all_rows:
-            append_rows(gc, adv["sheet_id"], adv["raw_tab"], all_rows)
-            print(f"  구글 시트 기입 완료: 총 {len(all_rows)}행")
+            try:
+                append_rows(gc, adv["sheet_id"], adv["raw_tab"], all_rows)
+                print(f"  구글 시트 기입 완료: 총 {len(all_rows)}행")
+            except Exception as e:
+                print(f"  [시트 오류] {e}")
         else:
             print(f"  수집된 데이터 없음")
 
