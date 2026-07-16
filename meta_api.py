@@ -6,9 +6,9 @@ BASE_URL    = f"https://graph.facebook.com/{API_VERSION}"
 def get_ad_thumbnails(ad_account_id, access_token):
     url = f"{BASE_URL}/act_{ad_account_id}/ads"
     params = {
-        "fields": "name,creative{thumbnail_url,image_url,picture,object_story_spec{link_data{picture},photo_data{url}}}",
+        "fields": "name,creative{thumbnail_url,image_url,object_story_spec{link_data{picture},photo_data{url}}}",
         "access_token": access_token,
-        "limit": 500,
+        "limit": 100,
     }
     thumbnails = {}
     try:
@@ -23,7 +23,6 @@ def get_ad_thumbnails(ad_account_id, access_token):
                 thumb = (
                     creative.get("image_url")
                     or creative.get("thumbnail_url")
-                    or creative.get("picture")
                     or spec.get("link_data", {}).get("picture")
                     or spec.get("photo_data", {}).get("url")
                     or ""
