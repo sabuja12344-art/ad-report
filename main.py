@@ -6,7 +6,10 @@
 import os
 import yaml
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
+
+KST = ZoneInfo("Asia/Seoul")
 
 from naver_api import get_report as naver_report
 from meta_api  import get_report as meta_report
@@ -22,8 +25,8 @@ def main():
     meta_token       = os.environ["META_ACCESS_TOKEN"]
     google_json      = os.environ.get("GOOGLE_JSON_PATH", "google_credentials.json")
 
-    # 어제 날짜
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    # 어제 날짜 (KST 기준 - GitHub Actions 서버는 UTC라서 명시적으로 지정해야 함)
+    yesterday = (datetime.now(KST) - timedelta(days=1)).strftime("%Y-%m-%d")
 
     # 광고주 설정
     with open("config.yaml", encoding="utf-8") as f:
@@ -33,7 +36,7 @@ def main():
     gc = get_client(google_json)
 
     print("=" * 55)
-    print(f"  광고 보고서 수집  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  광고 보고서 수집  {datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  대상 날짜: {yesterday}")
     print("=" * 55)
 
