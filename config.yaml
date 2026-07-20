@@ -11,6 +11,10 @@ users:
     password: "780d1bd586091289cc2b10b5c4b1f291829d535d0fac824a5ea381c596acccb4"
     role: advertiser
     advertiser: "맘시터"
+  demo_temp:
+    password: "0ead2060b65992dca4769af601a1b3a35ef38cfad2c2c465bb160ea764157c5d"
+    role: admin
+    advertiser: null
 
 advertisers:
   - name: 샐러디

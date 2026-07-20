@@ -1,50 +1,73 @@
 import requests
+import time
+from urllib.parse import urlsplit, parse_qs
 
 API_VERSION = "v19.0"
 BASE_URL    = f"https://graph.facebook.com/{API_VERSION}"
 
-def get_ad_thumbnails(ad_account_id, access_token):
-    url = f"{BASE_URL}/act_{ad_account_id}/ads"
-    params = {
-        "fields": "name,creative{thumbnail_url,image_url,object_story_spec{link_data{picture},photo_data{url}}}",
-        "access_token": access_token,
-        "limit": 100,
-    }
-    thumbnails = {}
-    try:
-        while url:
-            r = requests.get(url, params=params, timeout=30)
+def _fetch_ads_page(base_url, params, retries=2, backoff=0.7):
+    for attempt in range(retries):
+        try:
+            r = requests.get(base_url, params=params, timeout=30)
             r.raise_for_status()
-            data = r.json()
-            for ad in data.get("data", []):
-                name     = ad.get("name", "")
-                creative = ad.get("creative", {})
-                spec     = creative.get("object_story_spec", {})
-                thumb = (
-                    creative.get("image_url")
-                    or creative.get("thumbnail_url")
-                    or spec.get("link_data", {}).get("picture")
-                    or spec.get("photo_data", {}).get("url")
-                    or ""
-                )
-                if name and thumb:
-                    thumbnails[name] = thumb
-            url    = data.get("paging", {}).get("next")
-            params = {}
-    except Exception as e:
-        print(f"[썸네일 오류] {e}")
+            return r.json()
+        except Exception as e:
+            if attempt == retries - 1:
+                raise
+            time.sleep(backoff)
+
+def get_ad_thumbnails(ad_account_id, access_token):
+    base_url = f"{BASE_URL}/act_{ad_account_id}/ads"
+    fields   = "name,creative{thumbnail_url,image_url}"
+    after    = None
+    thumbnails = {}
+
+    while True:
+        params = {"fields": fields, "access_token": access_token, "limit": 100}
+        if after:
+            params["after"] = after
+
+        try:
+            data = _fetch_ads_page(base_url, params)
+        except Exception:
+            # 이 배치의 소재 정보를 가져오다 계속 실패하면(일부 소재의 서버측 오류로
+            # 추정), 최소 필드로 재시도해 커서만 얻어 다음 페이지로 계속 진행한다.
+            try:
+                data = _fetch_ads_page(base_url, {**params, "fields": "name"})
+            except Exception as e:
+                print(f"[썸네일 오류] {e}")
+                break
+
+        for ad in data.get("data", []):
+            name     = ad.get("name", "")
+            creative = ad.get("creative", {})
+            thumb    = creative.get("image_url") or creative.get("thumbnail_url") or ""
+            if name and thumb:
+                thumbnails[name] = thumb
+
+        next_url = data.get("paging", {}).get("next")
+        if not next_url:
+            break
+        after = parse_qs(urlsplit(next_url).query).get("after", [None])[0]
+        if not after:
+            break
+
     return thumbnails
 
 FIELDS = "campaign_name,adset_name,ad_name,impressions,clicks,spend,actions"
 
-def get_report(ad_account_id, access_token, date, conversion_event="purchase", campaign_exclude=None, extra_events=None):
+def get_report(ad_account_id, access_token, start_date, end_date=None, conversion_event="purchase", campaign_exclude=None, extra_events=None):
+    if end_date is None:
+        end_date = start_date
+
     url = f"{BASE_URL}/act_{ad_account_id}/insights"
     params = {
-        "fields":      FIELDS,
-        "time_range":  f'{{"since":"{date}","until":"{date}"}}',
-        "level":       "ad",
+        "fields":       FIELDS,
+        "time_range":   f'{{"since":"{start_date}","until":"{end_date}"}}',
+        "time_increment": 1,
+        "level":        "ad",
         "access_token": access_token,
-        "limit":       500,
+        "limit":        500,
     }
 
     rows = []
@@ -77,7 +100,7 @@ def get_report(ad_account_id, access_token, date, conversion_event="purchase", c
                 cpa  = round(cost / cnv) if cnv > 0 else 0
 
                 row = {
-                    "날짜":          date,
+                    "날짜":          item.get("date_start", start_date),
                     "캠페인이름":    item.get("campaign_name", ""),
                     "광고그룹(세트)이름": item.get("adset_name", ""),
                     "광고이름":      item.get("ad_name", ""),

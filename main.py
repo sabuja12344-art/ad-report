@@ -65,9 +65,9 @@ def main():
                 adv["meta_ad_account_id"],
                 meta_token,
                 yesterday,
-                adv.get("meta_conversion_event", "purchase"),
-                adv.get("meta_campaign_exclude"),
-                extra_events,
+                conversion_event=adv.get("meta_conversion_event", "purchase"),
+                campaign_exclude=adv.get("meta_campaign_exclude"),
+                extra_events=extra_events,
             )
             print(f"  → {len(rows)}행")
             all_rows.extend(rows)

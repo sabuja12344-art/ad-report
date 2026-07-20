@@ -4,6 +4,7 @@ import hmac
 import base64
 import time
 import json
+from datetime import datetime, timedelta
 
 BASE_URL = "https://api.searchad.naver.com"
 
@@ -48,9 +49,12 @@ def _get_stats(api_key, secret_key, customer_id, ids, date):
     r.raise_for_status()
     return r.json().get("data", [])
 
-def get_report(api_key, secret_key, customer_id, date):
+def get_report(api_key, secret_key, customer_id, start_date, end_date=None):
+    if end_date is None:
+        end_date = start_date
+
     try:
-        # 1. 캠페인 목록
+        # 1. 캠페인 목록 (기간 전체에 걸쳐 한 번만 조회, 하루마다 다시 안 부름)
         campaigns = _get("/ncc/campaigns", api_key, secret_key, customer_id)
         campaign_map = {c["nccCampaignId"]: c.get("name", "") for c in campaigns}
         if not campaign_map:
@@ -69,31 +73,43 @@ def get_report(api_key, secret_key, customer_id, date):
         if not adgroup_map:
             return []
 
-        # 3. 광고그룹 단위 통계
-        stats = _get_stats(api_key, secret_key, customer_id, list(adgroup_map), date)
-
+        # 3. 광고그룹 단위 통계 (네이버 다건조회 API는 timeIncrement로 일별 분리가 안 돼서
+        #    날짜별로 호출하되, 목록 조회는 위에서 이미 끝냈으므로 하루당 호출 1번으로 줄어든다)
         rows = []
-        for stat in stats:
-            ag_id = stat.get("id", "")
-            if ag_id not in adgroup_map:
+        cur = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        while cur <= end:
+            d = cur.strftime("%Y-%m-%d")
+            try:
+                stats = _get_stats(api_key, secret_key, customer_id, list(adgroup_map), d)
+            except Exception as e:
+                print(f"    [네이버 오류] {d}: {e}")
+                cur += timedelta(days=1)
                 continue
 
-            ag   = adgroup_map[ag_id]
-            cost = float(stat.get("salesAmt", 0))
-            cnv  = int(stat.get("ccnt", 0))
-            cpa  = round(cost / cnv) if cnv > 0 else 0
+            for stat in stats:
+                ag_id = stat.get("id", "")
+                if ag_id not in adgroup_map:
+                    continue
 
-            rows.append({
-                "날짜":              date,
-                "캠페인이름":        campaign_map.get(ag["campaign_id"], ""),
-                "광고그룹(세트)이름": ag["name"],
-                "광고이름":          "",
-                "노출":              int(stat.get("impCnt", 0)),
-                "클릭":              int(stat.get("clkCnt", 0)),
-                "비용":              cost,
-                "전환수":            cnv,
-                "전환당비용":        cpa,
-            })
+                ag   = adgroup_map[ag_id]
+                cost = float(stat.get("salesAmt", 0))
+                cnv  = int(stat.get("ccnt", 0))
+                cpa  = round(cost / cnv) if cnv > 0 else 0
+
+                rows.append({
+                    "날짜":              d,
+                    "캠페인이름":        campaign_map.get(ag["campaign_id"], ""),
+                    "광고그룹(세트)이름": ag["name"],
+                    "광고이름":          "",
+                    "노출":              int(stat.get("impCnt", 0)),
+                    "클릭":              int(stat.get("clkCnt", 0)),
+                    "비용":              cost,
+                    "전환수":            cnv,
+                    "전환당비용":        cpa,
+                })
+
+            cur += timedelta(days=1)
 
         return rows
 
