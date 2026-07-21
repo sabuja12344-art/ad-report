@@ -20,9 +20,9 @@ load_dotenv()
 
 def main():
     # 인증 정보
-    naver_api_key    = os.environ["NAVER_API_KEY"]
-    naver_secret_key = os.environ["NAVER_SECRET_KEY"]
-    meta_token       = os.environ["META_ACCESS_TOKEN"]
+    default_naver_api_key    = os.environ["NAVER_API_KEY"]
+    default_naver_secret_key = os.environ["NAVER_SECRET_KEY"]
+    meta_token                = os.environ["META_ACCESS_TOKEN"]
     google_json      = os.environ.get("GOOGLE_JSON_PATH", "google_credentials.json")
 
     # 어제 날짜 (KST 기준 - GitHub Actions 서버는 UTC라서 명시적으로 지정해야 함)
@@ -48,6 +48,8 @@ def main():
         # 네이버 검색광고
         if adv.get("naver_customer_id"):
             print(f"  네이버 수집 중...")
+            naver_api_key    = os.environ[adv["naver_api_key_env"]] if adv.get("naver_api_key_env") else default_naver_api_key
+            naver_secret_key = os.environ[adv["naver_secret_key_env"]] if adv.get("naver_secret_key_env") else default_naver_secret_key
             rows = naver_report(
                 naver_api_key,
                 naver_secret_key,

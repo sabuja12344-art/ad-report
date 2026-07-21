@@ -37,3 +37,12 @@ advertisers:
         event: "offsite_conversion.fb_pixel_purchase"
     sheet_id: "1hzYm9cYQUJFb2l1BpCp3kZN2SC5mYfIwxlKx-XzmvB8"
     raw_tab: "(RAW)"
+
+  - name: 다운타우너
+    naver_customer_id: 2749909
+    naver_api_key_env: DOWNTOWNER_NAVER_API_KEY
+    naver_secret_key_env: DOWNTOWNER_NAVER_SECRET_KEY
+    meta_ad_account_id: "505650112570685"
+    meta_conversion_event: "offsite_conversion.fb_pixel_complete_registration"
+    sheet_id: "1aPH2fsoCDE_wL0tcY9dobcfwIReNHm8gSVYAe-dbGUk"
+    raw_tab: "(RAW)"
