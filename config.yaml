@@ -15,6 +15,14 @@ users:
     password: "0ead2060b65992dca4769af601a1b3a35ef38cfad2c2c465bb160ea764157c5d"
     role: admin
     advertiser: null
+  everydays:
+    password: "4f2a3e84bfccbef06a3a99988ad9cf0b4bcb0ef6288cd9ad6609bf97689428c6"
+    role: advertiser
+    advertiser: "에브리데이즈"
+  sgautoplan:
+    password: "1cbf033f797a433960e46146ebbf5ca568d270048aa411ed5ffecfef881f26d4"
+    role: advertiser
+    advertiser: "sg오토플랜"
 
 advertisers:
   - name: 샐러디
@@ -46,3 +54,14 @@ advertisers:
     meta_conversion_event: "offsite_conversion.fb_pixel_complete_registration"
     sheet_id: "1aPH2fsoCDE_wL0tcY9dobcfwIReNHm8gSVYAe-dbGUk"
     raw_tab: "(RAW)"
+
+  - name: 에브리데이즈
+    naver_customer_id: 3003558
+    naver_api_key_env: EVERYDAYS_NAVER_API_KEY
+    naver_secret_key_env: EVERYDAYS_NAVER_SECRET_KEY
+    meta_ad_account_id: null
+
+  - name: sg오토플랜
+    naver_customer_id: null
+    meta_ad_account_id: "1709671310326590"
+    meta_conversion_event: "offsite_conversion.fb_pixel_lead"
