@@ -112,12 +112,16 @@ def get_token():
         pass
     return os.environ.get("META_ACCESS_TOKEN", "")
 
-def get_naver_creds():
+def get_naver_creds(key_env=None, secret_env=None):
     try:
+        if key_env and key_env in st.secrets:
+            return st.secrets[key_env], st.secrets[secret_env]
         if "NAVER_API_KEY" in st.secrets:
             return st.secrets["NAVER_API_KEY"], st.secrets["NAVER_SECRET_KEY"]
     except Exception:
         pass
+    if key_env:
+        return os.environ.get(key_env, ""), os.environ.get(secret_env, "")
     return os.environ.get("NAVER_API_KEY", ""), os.environ.get("NAVER_SECRET_KEY", "")
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -131,24 +135,29 @@ def fetch_range(ad_account_id, start_str, end_str, conversion_event, campaign_ex
                             conversion_event, campaign_exclude, extra_events)
 
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_naver_range(customer_id, start_str, end_str):
-    api_key, secret_key = get_naver_creds()
+def fetch_naver_range(customer_id, start_str, end_str, key_env, secret_env):
+    api_key, secret_key = get_naver_creds(key_env, secret_env)
     return naver_get_report(api_key, secret_key, customer_id, start_str, end_str)
 
 def load_combined_rows(adv, start_str, end_str):
-    meta_rows = fetch_range(
-        adv["meta_ad_account_id"],
-        start_str, end_str,
-        adv.get("meta_conversion_event", "purchase"),
-        adv.get("meta_campaign_exclude"),
-        adv.get("meta_extra_events"),
-    )
-    for r in meta_rows:
-        r["매체"] = "메타"
+    meta_rows = []
+    if adv.get("meta_ad_account_id"):
+        meta_rows = fetch_range(
+            adv["meta_ad_account_id"],
+            start_str, end_str,
+            adv.get("meta_conversion_event", "purchase"),
+            adv.get("meta_campaign_exclude"),
+            adv.get("meta_extra_events"),
+        )
+        for r in meta_rows:
+            r["매체"] = "메타"
 
     naver_rows = []
     if adv.get("naver_customer_id"):
-        naver_rows = fetch_naver_range(adv["naver_customer_id"], start_str, end_str)
+        naver_rows = fetch_naver_range(
+            adv["naver_customer_id"], start_str, end_str,
+            adv.get("naver_api_key_env"), adv.get("naver_secret_key_env"),
+        )
         for r in naver_rows:
             r["매체"] = "네이버"
 
