@@ -173,21 +173,29 @@ if not rows:
 df = pd.DataFrame(rows)
 df["날짜"] = pd.to_datetime(df["날짜"]).dt.date
 df["비용"] = df["비용"].astype(float)
+for col in ("구매전환수", "구매전환매출액"):
+    df[col] = df[col].fillna(0) if col in df.columns else 0
 extra_cols = [e["name"] for e in (adv.get("meta_extra_events") or [])]
 
 # ── 헬퍼 ───────────────────────────────────────────────
 def build_agg(source_df, group_cols):
     agg = {"비용":"sum", "노출":"sum", "클릭":"sum", "전환수":"sum"}
+    has_purchase = "구매전환매출액" in source_df.columns and source_df["구매전환매출액"].sum() > 0
+    if has_purchase:
+        agg["구매전환매출액"] = "sum"
     for ec in extra_cols:
         if ec in source_df.columns:
             agg[ec] = "sum"
     result = source_df.groupby(group_cols).agg(**{k:(k,v) for k,v in agg.items()}).reset_index()
     result["CPA"] = result.apply(lambda r: round(r["비용"]/r["전환수"]) if r["전환수"]>0 else 0, axis=1)
     result["CTR"] = result.apply(lambda r: round(r["클릭"]/r["노출"]*100,2) if r["노출"]>0 else 0, axis=1)
+    if has_purchase:
+        result["구매ROAS"] = result.apply(lambda r: round(r["구매전환매출액"]/r["비용"]*100,1) if r["비용"]>0 else 0, axis=1)
     return result.sort_values("비용", ascending=False)
 
 def col_fmt():
-    d = {"비용":"₩{:,.0f}", "CPA":"₩{:,.0f}", "노출":"{:,}", "클릭":"{:,}", "전환수":"{:,}", "CTR":"{:.2f}%"}
+    d = {"비용":"₩{:,.0f}", "CPA":"₩{:,.0f}", "노출":"{:,}", "클릭":"{:,}", "전환수":"{:,}", "CTR":"{:.2f}%",
+         "구매전환매출액":"₩{:,.0f}", "구매ROAS":"{:.1f}%"}
     for ec in extra_cols:
         d[ec] = "{:,.0f}"
     return d
@@ -199,6 +207,9 @@ total_clk  = df["클릭"].sum()
 total_imp  = df["노출"].sum()
 avg_cpa    = round(total_cost / total_cnv) if total_cnv > 0 else 0
 ctr        = round(total_clk / total_imp * 100, 2) if total_imp > 0 else 0
+total_purchase_amt = df["구매전환매출액"].sum()
+total_purchase_cnt = df["구매전환수"].sum()
+purchase_roas      = round(total_purchase_amt / total_cost * 100, 1) if total_cost > 0 else 0
 
 daily = df.groupby("날짜").agg(비용=("비용","sum"), 전환수=("전환수","sum"), 클릭=("클릭","sum")).reset_index()
 daily["CPA"] = daily.apply(lambda r: round(r["비용"]/r["전환수"]) if r["전환수"]>0 else 0, axis=1)
@@ -214,6 +225,8 @@ with st.spinner("이전 기간 데이터 불러오는 중..."):
 df_prev = pd.DataFrame(prev_rows)
 if not df_prev.empty:
     df_prev["비용"] = df_prev["비용"].astype(float)
+    for col in ("구매전환수", "구매전환매출액"):
+        df_prev[col] = df_prev[col].fillna(0) if col in df_prev.columns else 0
 
 prev_cost = df_prev["비용"].sum()   if not df_prev.empty else 0
 prev_cnv  = df_prev["전환수"].sum() if not df_prev.empty else 0
@@ -221,6 +234,8 @@ prev_clk  = df_prev["클릭"].sum()   if not df_prev.empty else 0
 prev_imp  = df_prev["노출"].sum()   if not df_prev.empty else 0
 prev_cpa  = round(prev_cost / prev_cnv) if prev_cnv > 0 else 0
 prev_ctr  = round(prev_clk / prev_imp * 100, 2) if prev_imp > 0 else 0
+prev_purchase_amt = df_prev["구매전환매출액"].sum() if not df_prev.empty else 0
+prev_roas         = round(prev_purchase_amt / prev_cost * 100, 1) if prev_cost > 0 else 0
 
 def fmt_delta(cur, prev):
     if df_prev.empty or prev == 0:
@@ -269,6 +284,12 @@ with tab1:
     c3.metric("전환당비용", f"₩{avg_cpa:,}",        delta=fmt_delta(avg_cpa, prev_cpa), delta_color="inverse")
     c4.metric("총 클릭",    f"{total_clk:,}",       delta=fmt_delta(total_clk, prev_clk))
     c5.metric("CTR",        f"{ctr}%",              delta=fmt_delta(ctr, prev_ctr))
+
+    if adv.get("naver_customer_id"):
+        st.divider()
+        p1, p2 = st.columns(2)
+        p1.metric("구매전환매출액", f"₩{total_purchase_amt:,.0f}", delta=fmt_delta(total_purchase_amt, prev_purchase_amt))
+        p2.metric("구매 ROAS",      f"{purchase_roas}%",           delta=fmt_delta(purchase_roas, prev_roas))
 
     if extra_cols:
         st.divider()

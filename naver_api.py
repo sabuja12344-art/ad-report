@@ -40,7 +40,7 @@ def _get_stats(api_key, secret_key, customer_id, ids, date):
         headers=_headers("GET", path, api_key, secret_key, customer_id),
         params={
             "ids":           ",".join(ids),
-            "fields":        json.dumps(["impCnt", "clkCnt", "salesAmt", "ccnt"]),
+            "fields":        json.dumps(["impCnt", "clkCnt", "salesAmt", "ccnt", "purchaseCcnt", "purchaseConvAmt"]),
             "timeRange":     json.dumps({"since": date, "until": date}),
             "timeIncrement": "day",
         },
@@ -107,6 +107,8 @@ def get_report(api_key, secret_key, customer_id, start_date, end_date=None):
                     "비용":              cost,
                     "전환수":            cnv,
                     "전환당비용":        cpa,
+                    "구매전환수":        int(stat.get("purchaseCcnt", 0)),
+                    "구매전환매출액":    float(stat.get("purchaseConvAmt", 0)),
                 })
 
             cur += timedelta(days=1)
