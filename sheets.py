@@ -35,7 +35,7 @@ def _with_retry(fn, retries=4):
             else:
                 raise
 
-def append_rows(client, sheet_id, tab_name, rows):
+def append_rows(client, sheet_id, tab_name, rows, section_keyword="메타", columns=None):
     if not rows:
         return
 
@@ -44,7 +44,7 @@ def append_rows(client, sheet_id, tab_name, rows):
     first_row = _with_retry(lambda: ws.row_values(1))
     start_col = 1
     for i, v in enumerate(first_row):
-        if "메타" in str(v):
+        if section_keyword in str(v):
             start_col = i + 1
             break
 
@@ -53,6 +53,6 @@ def append_rows(client, sheet_id, tab_name, rows):
     next_row  = last_row + 1
     range_name = f"{_col_letter(start_col)}{next_row}"
 
-    columns = _build_columns(rows)
+    columns = columns or _build_columns(rows)
     data    = [[row.get(col, "") for col in columns] for row in rows]
     _with_retry(lambda: ws.update(range_name, data, value_input_option="USER_ENTERED"))
