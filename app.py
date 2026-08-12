@@ -7,8 +7,8 @@ import os
 import hashlib
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from meta_api import get_report as meta_get_report, get_ad_thumbnails
-from naver_api import get_report as naver_get_report
+from meta_api import get_ad_thumbnails
+from supabase_client import get_client as get_supabase_client, fetch_rows as fetch_supabase_rows
 
 load_dotenv()
 
@@ -112,59 +112,20 @@ def get_token():
         pass
     return os.environ.get("META_ACCESS_TOKEN", "")
 
-def get_naver_creds(key_env=None, secret_env=None):
-    try:
-        if key_env and key_env in st.secrets:
-            return st.secrets[key_env], st.secrets[secret_env]
-        if "NAVER_API_KEY" in st.secrets:
-            return st.secrets["NAVER_API_KEY"], st.secrets["NAVER_SECRET_KEY"]
-    except Exception:
-        pass
-    if key_env:
-        return os.environ.get(key_env, ""), os.environ.get(secret_env, "")
-    return os.environ.get("NAVER_API_KEY", ""), os.environ.get("NAVER_SECRET_KEY", "")
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_thumbnails(ad_account_id):
     return get_ad_thumbnails(ad_account_id, get_token())
 
-@st.cache_data(ttl=300, show_spinner=False)
-def fetch_range(ad_account_id, start_str, end_str, conversion_event, campaign_exclude, extra_events):
-    token = get_token()
-    return meta_get_report(ad_account_id, token, start_str, end_str,
-                            conversion_event, campaign_exclude, extra_events)
+@st.cache_resource
+def supabase_client():
+    return get_supabase_client()
 
-@st.cache_data(ttl=300, show_spinner=False)
-def fetch_naver_range(customer_id, start_str, end_str, key_env, secret_env):
-    api_key, secret_key = get_naver_creds(key_env, secret_env)
-    return naver_get_report(api_key, secret_key, customer_id, start_str, end_str)
-
-def load_combined_rows(adv, start_str, end_str):
-    meta_rows = []
-    if adv.get("meta_ad_account_id"):
-        meta_rows = fetch_range(
-            adv["meta_ad_account_id"],
-            start_str, end_str,
-            adv.get("meta_conversion_event", "purchase"),
-            adv.get("meta_campaign_exclude"),
-            adv.get("meta_extra_events"),
-        )
-        for r in meta_rows:
-            r["매체"] = "메타"
-
-    naver_rows = []
-    if adv.get("naver_customer_id"):
-        naver_rows = fetch_naver_range(
-            adv["naver_customer_id"], start_str, end_str,
-            adv.get("naver_api_key_env"), adv.get("naver_secret_key_env"),
-        )
-        for r in naver_rows:
-            r["매체"] = "네이버"
-
-    return meta_rows + naver_rows
+@st.cache_data(ttl=60, show_spinner=False)
+def load_combined_rows(advertiser_name, start_str, end_str):
+    return fetch_supabase_rows(supabase_client(), advertiser_name, start_str, end_str)
 
 with st.spinner("데이터 불러오는 중..."):
-    rows = load_combined_rows(adv, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+    rows = load_combined_rows(selected_name, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
 
 if not rows:
     st.warning("해당 기간에 데이터가 없습니다.")
@@ -220,7 +181,7 @@ prev_end    = start_date - timedelta(days=1)
 prev_start  = prev_end - timedelta(days=period_days - 1)
 
 with st.spinner("이전 기간 데이터 불러오는 중..."):
-    prev_rows = load_combined_rows(adv, prev_start.strftime("%Y-%m-%d"), prev_end.strftime("%Y-%m-%d"))
+    prev_rows = load_combined_rows(selected_name, prev_start.strftime("%Y-%m-%d"), prev_end.strftime("%Y-%m-%d"))
 
 df_prev = pd.DataFrame(prev_rows)
 if not df_prev.empty:

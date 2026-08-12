@@ -19,10 +19,10 @@ users:
     password: "4f2a3e84bfccbef06a3a99988ad9cf0b4bcb0ef6288cd9ad6609bf97689428c6"
     role: advertiser
     advertiser: "에브리데이즈"
-  sgautoplan:
-    password: "1cbf033f797a433960e46146ebbf5ca568d270048aa411ed5ffecfef881f26d4"
+  sgrental:
+    password: "041551eaacf326976ec11ca9ef66b40d099abb5bc9d2f72e0eb7f521b1a1831d"
     role: advertiser
-    advertiser: "sg오토플랜"
+    advertiser: "SG렌터카"
 
 advertisers:
   - name: 샐러디
@@ -61,7 +61,7 @@ advertisers:
     naver_secret_key_env: EVERYDAYS_NAVER_SECRET_KEY
     meta_ad_account_id: null
 
-  - name: sg오토플랜
+  - name: SG렌터카
     naver_customer_id: null
     meta_ad_account_id: "1709671310326590"
-    meta_conversion_event: "offsite_conversion.fb_pixel_lead"
+    meta_conversion_event: "offsite_conversion.fb_pixel_complete_registration"

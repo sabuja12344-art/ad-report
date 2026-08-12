@@ -1,0 +1,37 @@
+name: Supabase 대시보드 동기화
+
+on:
+  schedule:
+    # 매일 오전 8시 5분 (KST) = UTC 23:05 (전날) — 구글시트 워크플로우와 5분 간격을 둬서 동시에 API를 때리지 않도록 함
+    - cron: '5 23 * * *'
+  workflow_dispatch:  # 수동 실행 버튼
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: Supabase 동기화
+        env:
+          NAVER_API_KEY:               ${{ secrets.NAVER_API_KEY }}
+          NAVER_SECRET_KEY:            ${{ secrets.NAVER_SECRET_KEY }}
+          DOWNTOWNER_NAVER_API_KEY:    ${{ secrets.DOWNTOWNER_NAVER_API_KEY }}
+          DOWNTOWNER_NAVER_SECRET_KEY: ${{ secrets.DOWNTOWNER_NAVER_SECRET_KEY }}
+          EVERYDAYS_NAVER_API_KEY:     ${{ secrets.EVERYDAYS_NAVER_API_KEY }}
+          EVERYDAYS_NAVER_SECRET_KEY:  ${{ secrets.EVERYDAYS_NAVER_SECRET_KEY }}
+          META_ACCESS_TOKEN:           ${{ secrets.META_ACCESS_TOKEN }}
+          SUPABASE_URL:                ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY:   ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python supabase_sync.py
