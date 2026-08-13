@@ -4,11 +4,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 import yaml
 import os
+import json
 import hashlib
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from meta_api import get_ad_thumbnails
 from supabase_client import get_client as get_supabase_client, fetch_rows as fetch_supabase_rows
+from sheets import get_client as get_sheets_client, get_client_from_info, read_leads
 
 load_dotenv()
 
@@ -369,6 +371,7 @@ with tab3:
 with tab4:
     st.subheader("잠재고객 누적 현황")
 
+    # ── 광고 성과 KPI ──
     daily_lead = df.groupby("날짜").agg(
         잠재고객=("전환수", "sum"),
         비용=("비용", "sum"),
@@ -381,13 +384,12 @@ with tab4:
     total_leads = int(daily_lead["잠재고객"].sum())
     total_lead_cost = daily_lead["비용"].sum()
     avg_lead_cpa = round(total_lead_cost / total_leads) if total_leads > 0 else 0
-
     prev_leads = int(df_prev["전환수"].sum()) if not df_prev.empty else 0
 
     c1, c2, c3 = st.columns(3)
     c1.metric("기간 내 총 잠재고객", f"{total_leads:,}건", delta=fmt_delta(total_leads, prev_leads))
     c2.metric("잠재고객 누적", f"{int(daily_lead['누적'].iloc[-1]):,}건")
-    c3.metric("건당 비용(CPA)", f"₩{avg_lead_cpa:,}", delta_color="inverse")
+    c3.metric("건당 비용(CPA)", f"₩{avg_lead_cpa:,}")
 
     st.divider()
     ch1, ch2 = st.columns(2)
@@ -402,20 +404,91 @@ with tab4:
         fig_l2.update_layout(height=300, margin=dict(t=40, b=0))
         st.plotly_chart(fig_l2, use_container_width=True)
 
-    st.divider()
-    st.markdown("#### 캠페인별 잠재고객")
-    camp_lead = build_agg(df, ["매체", "캠페인이름"]).rename(columns={"전환수": "잠재고객수"})
-    fmt = {"비용": "₩{:,.0f}", "CPA": "₩{:,.0f}", "잠재고객수": "{:,}", "CTR": "{:.2f}%"}
-    display_cols = [c for c in ["매체", "캠페인이름", "비용", "잠재고객수", "CPA", "CTR"] if c in camp_lead.columns]
-    st.dataframe(camp_lead[display_cols].style.format(fmt), use_container_width=True, hide_index=True)
+    # ── 실제 잠재고객 정보 (구글 시트) ──
+    leads_sheet_id = adv.get("leads_sheet_id")
+    leads_tab      = adv.get("leads_tab", "시트1")
 
-    st.divider()
-    st.markdown("#### 일별 상세")
-    st.dataframe(
-        daily_lead.rename(columns={"잠재고객": "잠재고객수", "누적": "누적합계"})
-        .style.format({"비용": "₩{:,.0f}", "CPA": "₩{:,.0f}", "잠재고객수": "{:,}", "누적합계": "{:,}"}),
-        use_container_width=True, hide_index=True,
-    )
+    if leads_sheet_id:
+        st.divider()
+        st.markdown("#### 잠재고객 상세 정보")
+
+        @st.cache_resource
+        def _sheets_client():
+            try:
+                creds_json = st.secrets.get("GOOGLE_CREDENTIALS_JSON")
+                if creds_json:
+                    return get_client_from_info(json.loads(creds_json))
+            except Exception:
+                pass
+            google_json = os.environ.get("GOOGLE_JSON_PATH", "google_credentials.json")
+            return get_sheets_client(google_json)
+
+        @st.cache_data(ttl=300, show_spinner=False)
+        def _load_leads(sheet_id, tab):
+            return read_leads(_sheets_client(), sheet_id, tab)
+
+        with st.spinner("잠재고객 정보 불러오는 중..."):
+            try:
+                lead_rows = _load_leads(leads_sheet_id, leads_tab)
+            except Exception as e:
+                lead_rows = []
+                st.warning(f"시트 연동 오류: {e}")
+
+        if lead_rows:
+            df_leads = pd.DataFrame(lead_rows)
+
+            # 전화번호 'p:' 접두사 제거, 국제번호 → 국내 형식
+            if "전화번호" in df_leads.columns:
+                df_leads["전화번호"] = (
+                    df_leads["전화번호"]
+                    .astype(str)
+                    .str.replace(r"^p:", "", regex=True)
+                    .str.replace(r"^\+82", "0", regex=True)
+                )
+
+            # 날짜 파싱 및 선택 기간 필터
+            time_col = "요청시간" if "요청시간" in df_leads.columns else None
+            if time_col:
+                df_leads["_dt"] = pd.to_datetime(df_leads[time_col], errors="coerce", utc=True)
+                df_leads["_date"] = df_leads["_dt"].dt.tz_convert("Asia/Seoul").dt.date
+                df_leads = df_leads[
+                    (df_leads["_date"] >= start_date) & (df_leads["_date"] <= end_date)
+                ].copy()
+                df_leads.insert(0, "날짜", df_leads["_date"])
+                df_leads = df_leads.drop(columns=["_dt", "_date"])
+
+            # platform 한글화
+            if "platform" in df_leads.columns:
+                df_leads["platform"] = df_leads["platform"].replace({"ig": "Instagram", "fb": "Facebook"})
+
+            # 표시할 컬럼 선택
+            show_cols = ["날짜", "이름", "전화번호", "campaign_name", "platform"]
+            extra_cols_leads = [c for c in df_leads.columns
+                                if c not in show_cols + ["id", "ad_id", "adset_id", "campaign_id",
+                                                          "form_id", "form_name", "is_organic",
+                                                          "lead_status", "요청시간", "created_time",
+                                                          "adset_name", "ad_name", "0"]
+                                and df_leads[c].astype(str).str.strip().any()]
+            show_cols = [c for c in show_cols if c in df_leads.columns] + extra_cols_leads
+
+            df_display = df_leads[show_cols].rename(columns={"campaign_name": "캠페인", "platform": "플랫폼"})
+            df_display = df_display.sort_values("날짜", ascending=False) if "날짜" in df_display.columns else df_display
+
+            st.caption(f"기간 내 잠재고객 {len(df_display):,}건")
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+            csv = df_display.to_csv(index=False, encoding="utf-8-sig")
+            st.download_button("CSV 다운로드", csv,
+                               f"잠재고객_{start_date}_{end_date}.csv", "text/csv")
+        else:
+            st.info("해당 기간에 잠재고객 정보가 없습니다.")
+    else:
+        st.divider()
+        st.markdown("#### 캠페인별 잠재고객")
+        camp_lead = build_agg(df, ["매체", "캠페인이름"]).rename(columns={"전환수": "잠재고객수"})
+        fmt_l = {"비용": "₩{:,.0f}", "CPA": "₩{:,.0f}", "잠재고객수": "{:,}", "CTR": "{:.2f}%"}
+        disp = [c for c in ["매체", "캠페인이름", "비용", "잠재고객수", "CPA", "CTR"] if c in camp_lead.columns]
+        st.dataframe(camp_lead[disp].style.format(fmt_l), use_container_width=True, hide_index=True)
 
 # ── 원본 데이터 ────────────────────────────────────────
 with st.expander("원본 데이터 보기"):

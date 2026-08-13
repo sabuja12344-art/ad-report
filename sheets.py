@@ -35,6 +35,26 @@ def _with_retry(fn, retries=4):
             else:
                 raise
 
+def get_client_from_info(credentials_info):
+    creds = Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
+    return gspread.authorize(creds)
+
+def read_leads(client, sheet_id, tab_name="시트1"):
+    ws = _with_retry(lambda: client.open_by_key(sheet_id).worksheet(tab_name))
+    all_values = _with_retry(lambda: ws.get_all_values())
+    if not all_values:
+        return []
+    headers = all_values[0]
+    # 빈 헤더는 건너뜀
+    rows = []
+    for row in all_values[1:]:
+        record = {}
+        for i, h in enumerate(headers):
+            if h:
+                record[h] = row[i] if i < len(row) else ""
+        rows.append(record)
+    return rows
+
 def append_rows(client, sheet_id, tab_name, rows, section_keyword="메타", columns=None):
     if not rows:
         return
