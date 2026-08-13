@@ -27,10 +27,7 @@ def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def get_users():
-    try:
-        return dict(st.secrets["users"])
-    except Exception:
-        return config.get("users", {})
+    return config.get("users", {})
 
 def do_login(username, password):
     users = get_users()
