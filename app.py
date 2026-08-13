@@ -118,7 +118,16 @@ def fetch_thumbnails(ad_account_id):
 
 @st.cache_resource
 def supabase_client():
-    return get_supabase_client()
+    try:
+        return get_supabase_client()
+    except KeyError:
+        available_keys = list(st.secrets.keys()) if hasattr(st, "secrets") else []
+        st.error(
+            f"Supabase 연결 실패: SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY가 Secrets에 없습니다.\n\n"
+            f"현재 등록된 Secret 키 목록: `{available_keys}`\n\n"
+            "Streamlit Cloud → Manage app → Settings → Secrets 에서 키 이름을 확인하세요."
+        )
+        st.stop()
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_combined_rows(advertiser_name, start_str, end_str):
