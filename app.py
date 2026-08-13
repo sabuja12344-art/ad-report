@@ -128,6 +128,21 @@ def supabase_client():
         )
         st.stop()
 
+@st.cache_resource
+def sheets_client():
+    try:
+        creds_json = st.secrets.get("GOOGLE_CREDENTIALS_JSON")
+        if creds_json:
+            return get_client_from_info(json.loads(creds_json))
+    except Exception as e:
+        st.warning(f"Google Credentials JSON 로드 실패: {e}")
+    google_json = os.environ.get("GOOGLE_JSON_PATH", "google_credentials.json")
+    return get_sheets_client(google_json)
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_leads_cached(sheet_id, tab):
+    return read_leads(sheets_client(), sheet_id, tab)
+
 @st.cache_data(ttl=60, show_spinner=False)
 def load_combined_rows(advertiser_name, start_str, end_str):
     return fetch_supabase_rows(supabase_client(), advertiser_name, start_str, end_str)
@@ -412,30 +427,16 @@ with tab4:
         st.divider()
         st.markdown("#### 잠재고객 상세 정보")
 
-        @st.cache_resource
-        def _sheets_client():
-            try:
-                creds_json = st.secrets.get("GOOGLE_CREDENTIALS_JSON")
-                if creds_json:
-                    return get_client_from_info(json.loads(creds_json))
-            except Exception:
-                pass
-            google_json = os.environ.get("GOOGLE_JSON_PATH", "google_credentials.json")
-            return get_sheets_client(google_json)
-
-        @st.cache_data(ttl=300, show_spinner=False)
-        def _load_leads(sheet_id, tab):
-            return read_leads(_sheets_client(), sheet_id, tab)
-
         with st.spinner("잠재고객 정보 불러오는 중..."):
             try:
-                lead_rows = _load_leads(leads_sheet_id, leads_tab)
+                lead_rows = load_leads_cached(leads_sheet_id, leads_tab)
             except Exception as e:
                 lead_rows = []
                 st.warning(f"시트 연동 오류: {e}")
 
         if lead_rows:
             df_leads = pd.DataFrame(lead_rows)
+            total_in_sheet = len(df_leads)
 
             # 전화번호 'p:' 접두사 제거, 국제번호 → 국내 형식
             if "전화번호" in df_leads.columns:
@@ -446,8 +447,16 @@ with tab4:
                     .str.replace(r"^\+82", "0", regex=True)
                 )
 
+            # campaign_name에 Meta 권한 오류 메시지가 저장된 경우 정제
+            if "campaign_name" in df_leads.columns:
+                df_leads["campaign_name"] = df_leads["campaign_name"].apply(
+                    lambda v: "알 수 없음" if str(v).strip().startswith("권한이") else v
+                )
+
             # 날짜 파싱 및 선택 기간 필터
-            time_col = "요청시간" if "요청시간" in df_leads.columns else None
+            time_col = next(
+                (c for c in ["요청시간", "created_time", "날짜"] if c in df_leads.columns), None
+            )
             if time_col:
                 df_leads["_dt"] = pd.to_datetime(df_leads[time_col], errors="coerce", utc=True)
                 df_leads["_date"] = df_leads["_dt"].dt.tz_convert("Asia/Seoul").dt.date
@@ -456,6 +465,8 @@ with tab4:
                 ].copy()
                 df_leads.insert(0, "날짜", df_leads["_date"])
                 df_leads = df_leads.drop(columns=["_dt", "_date"])
+
+            st.caption(f"시트 전체 잠재고객: {total_in_sheet:,}건 | 기간 필터({start_date} ~ {end_date}) 적용 후: {len(df_leads):,}건")
 
             # platform 한글화
             if "platform" in df_leads.columns:
@@ -474,7 +485,6 @@ with tab4:
             df_display = df_leads[show_cols].rename(columns={"campaign_name": "캠페인", "platform": "플랫폼"})
             df_display = df_display.sort_values("날짜", ascending=False) if "날짜" in df_display.columns else df_display
 
-            st.caption(f"기간 내 잠재고객 {len(df_display):,}건")
             st.dataframe(df_display, use_container_width=True, hide_index=True)
 
             csv = df_display.to_csv(index=False, encoding="utf-8-sig")
