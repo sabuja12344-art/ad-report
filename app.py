@@ -238,7 +238,7 @@ def find_issues(df_cur, df_prev, cpa_threshold=1.2, cost_spike=1.5):
 st.title(f"{selected_name} 광고 성과")
 st.caption(f"{start_date} ~ {end_date}")
 
-tab1, tab2, tab3 = st.tabs(["📈 전체 성과", "🎯 캠페인별", "🖼️ 소재별"])
+tab1, tab2, tab3, tab4 = st.tabs(["📈 전체 성과", "🎯 캠페인별", "🖼️ 소재별", "📋 잠재고객 누적"])
 
 # ── Tab1: 전체 성과 ────────────────────────────────────
 with tab1:
@@ -364,6 +364,58 @@ with tab3:
         fig4.update_layout(height=max(300, len(top10)*40), margin=dict(t=40,b=0))
         fig4.update_xaxes(tickformat=",.0f")
         st.plotly_chart(fig4, use_container_width=True)
+
+# ── Tab4: 잠재고객 누적 ────────────────────────────────
+with tab4:
+    st.subheader("잠재고객 누적 현황")
+
+    daily_lead = df.groupby("날짜").agg(
+        잠재고객=("전환수", "sum"),
+        비용=("비용", "sum"),
+    ).reset_index().sort_values("날짜")
+    daily_lead["누적"] = daily_lead["잠재고객"].cumsum()
+    daily_lead["CPA"] = daily_lead.apply(
+        lambda r: round(r["비용"] / r["잠재고객"]) if r["잠재고객"] > 0 else 0, axis=1
+    )
+
+    total_leads = int(daily_lead["잠재고객"].sum())
+    total_lead_cost = daily_lead["비용"].sum()
+    avg_lead_cpa = round(total_lead_cost / total_leads) if total_leads > 0 else 0
+
+    prev_leads = int(df_prev["전환수"].sum()) if not df_prev.empty else 0
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("기간 내 총 잠재고객", f"{total_leads:,}건", delta=fmt_delta(total_leads, prev_leads))
+    c2.metric("잠재고객 누적", f"{int(daily_lead['누적'].iloc[-1]):,}건")
+    c3.metric("건당 비용(CPA)", f"₩{avg_lead_cpa:,}", delta_color="inverse")
+
+    st.divider()
+    ch1, ch2 = st.columns(2)
+    with ch1:
+        fig_l1 = px.bar(daily_lead, x="날짜", y="잠재고객", title="일별 잠재고객 수",
+                        color_discrete_sequence=["#34A853"])
+        fig_l1.update_layout(height=300, margin=dict(t=40, b=0))
+        st.plotly_chart(fig_l1, use_container_width=True)
+    with ch2:
+        fig_l2 = px.line(daily_lead, x="날짜", y="누적", title="누적 잠재고객 추이",
+                         markers=True, color_discrete_sequence=["#4C8BF5"])
+        fig_l2.update_layout(height=300, margin=dict(t=40, b=0))
+        st.plotly_chart(fig_l2, use_container_width=True)
+
+    st.divider()
+    st.markdown("#### 캠페인별 잠재고객")
+    camp_lead = build_agg(df, ["매체", "캠페인이름"]).rename(columns={"전환수": "잠재고객수"})
+    fmt = {"비용": "₩{:,.0f}", "CPA": "₩{:,.0f}", "잠재고객수": "{:,}", "CTR": "{:.2f}%"}
+    display_cols = [c for c in ["매체", "캠페인이름", "비용", "잠재고객수", "CPA", "CTR"] if c in camp_lead.columns]
+    st.dataframe(camp_lead[display_cols].style.format(fmt), use_container_width=True, hide_index=True)
+
+    st.divider()
+    st.markdown("#### 일별 상세")
+    st.dataframe(
+        daily_lead.rename(columns={"잠재고객": "잠재고객수", "누적": "누적합계"})
+        .style.format({"비용": "₩{:,.0f}", "CPA": "₩{:,.0f}", "잠재고객수": "{:,}", "누적합계": "{:,}"}),
+        use_container_width=True, hide_index=True,
+    )
 
 # ── 원본 데이터 ────────────────────────────────────────
 with st.expander("원본 데이터 보기"):

@@ -64,4 +64,4 @@ advertisers:
   - name: SG렌터카
     naver_customer_id: null
     meta_ad_account_id: "1709671310326590"
-    meta_conversion_event: "offsite_conversion.fb_pixel_complete_registration"
+    meta_conversion_event: "lead"
