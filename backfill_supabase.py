@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import yaml
 
 KST = ZoneInfo("Asia/Seoul")
-BACKFILL_DAYS = 30
+BACKFILL_DAYS = 90
 
 from naver_api import get_report as naver_report
 from meta_api import get_report as meta_report

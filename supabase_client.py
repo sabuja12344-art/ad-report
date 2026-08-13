@@ -43,7 +43,14 @@ def to_supabase_rows(rows, advertiser, channel, extra_event_names=None):
 def upsert_rows(client, rows):
     if not rows:
         return
-    client.table(TABLE).upsert(rows, on_conflict=ON_CONFLICT).execute()
+    # 배치 내 중복 제거 (ON CONFLICT 키 기준)
+    conflict_keys = ON_CONFLICT.split(",")
+    seen = {}
+    for r in rows:
+        key = tuple(r.get(k, "") for k in conflict_keys)
+        seen[key] = r
+    deduped = list(seen.values())
+    client.table(TABLE).upsert(deduped, on_conflict=ON_CONFLICT).execute()
 
 
 def fetch_rows(client, advertiser, start_date, end_date):
