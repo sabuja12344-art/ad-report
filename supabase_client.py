@@ -6,8 +6,17 @@ ON_CONFLICT = "advertiser,channel,date,campaign_name,adgroup_name,ad_name"
 
 
 def get_client():
-    url = os.environ["SUPABASE_URL"]
-    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    try:
+        import streamlit as st
+        url = st.secrets.get("SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+        key = st.secrets.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    except Exception:
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+    if not url or not key:
+        raise KeyError("SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다.")
+
     return create_client(url, key)
 
 
