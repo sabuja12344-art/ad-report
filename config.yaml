@@ -20,7 +20,7 @@ users:
     role: advertiser
     advertiser: "에브리데이즈"
   sgrental:
-    password: "041551eaacf326976ec11ca9ef66b40d099abb5bc9d2f72e0eb7f521b1a1831d"
+    password: "da477c2c1f271ea174150ed6f4f41079c6f8c4ffec2b3426cfb33bfbb4588d23"
     role: advertiser
     advertiser: "SG렌터카"
 
