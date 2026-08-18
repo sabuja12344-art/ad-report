@@ -70,16 +70,39 @@ def get_report(ad_account_id, access_token, start_date, end_date=None, conversio
         "limit":        500,
     }
 
+    def _fetch_page(page_url, page_params, retries=3):
+        for attempt in range(retries):
+            try:
+                r = requests.get(page_url, params=page_params, timeout=60)
+                r.raise_for_status()
+                data = r.json()
+                if "error" in data:
+                    code = data["error"].get("code")
+                    msg  = data["error"].get("message", str(data["error"]))
+                    # 17: rate limit — 재시도, 그 외는 즉시 중단
+                    if code == 17 and attempt < retries - 1:
+                        wait = 2 ** (attempt + 2)
+                        print(f"    [메타 레이트 리밋] {wait}초 후 재시도...")
+                        time.sleep(wait)
+                        continue
+                    raise RuntimeError(f"Meta API 오류: {msg}")
+                return data
+            except RuntimeError:
+                raise
+            except Exception as e:
+                if attempt < retries - 1:
+                    wait = 2 ** attempt
+                    print(f"    [메타 페이지 재시도 {attempt+1}/{retries}] {wait}초 후 재시도... ({e})")
+                    time.sleep(wait)
+                else:
+                    raise
+
     rows = []
+    page_num = 0
     try:
         while url:
-            r = requests.get(url, params=params, timeout=30)
-            r.raise_for_status()
-            data = r.json()
-
-            if "error" in data:
-                print(f"    [메타 API 오류] {data['error'].get('message', data)}")
-                break
+            page_num += 1
+            data = _fetch_page(url, params)
 
             for item in data.get("data", []):
                 campaign_name = item.get("campaign_name", "")
@@ -113,12 +136,11 @@ def get_report(ad_account_id, access_token, start_date, end_date=None, conversio
                 row.update(extra_cnv)
                 rows.append(row)
 
-            # 다음 페이지
             next_url = data.get("paging", {}).get("next")
             url    = next_url
             params = {}
 
     except Exception as e:
-        print(f"    [메타 오류] {e}")
+        print(f"    [메타 오류] 페이지 {page_num}에서 중단: {e} (수집된 행: {len(rows)})")
 
     return rows

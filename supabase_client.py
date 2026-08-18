@@ -50,20 +50,34 @@ def upsert_rows(client, rows):
         key = tuple(r.get(k, "") for k in conflict_keys)
         seen[key] = r
     deduped = list(seen.values())
-    client.table(TABLE).upsert(deduped, on_conflict=ON_CONFLICT).execute()
+    # PostgREST 페이로드 한계 회피: 500행씩 나눠 upsert
+    CHUNK = 500
+    for i in range(0, len(deduped), CHUNK):
+        client.table(TABLE).upsert(deduped[i:i + CHUNK], on_conflict=ON_CONFLICT).execute()
 
 
 def fetch_rows(client, advertiser, start_date, end_date):
-    res = (
-        client.table(TABLE)
-        .select("*")
-        .eq("advertiser", advertiser)
-        .gte("date", start_date)
-        .lte("date", end_date)
-        .execute()
-    )
+    PAGE = 1000
+    all_data = []
+    offset = 0
+    while True:
+        res = (
+            client.table(TABLE)
+            .select("*")
+            .eq("advertiser", advertiser)
+            .gte("date", start_date)
+            .lte("date", end_date)
+            .order("date")
+            .range(offset, offset + PAGE - 1)
+            .execute()
+        )
+        all_data.extend(res.data)
+        if len(res.data) < PAGE:
+            break
+        offset += PAGE
+
     rows = []
-    for r in res.data:
+    for r in all_data:
         row = {
             "날짜":                r["date"],
             "캠페인이름":          r["campaign_name"],
