@@ -4,6 +4,8 @@ from supabase import create_client
 TABLE = "ad_report_rows"
 ON_CONFLICT = "advertiser,channel,date,campaign_name,adgroup_name,ad_name"
 
+_BASE_FIELDS = {"날짜", "캠페인이름", "광고그룹(세트)이름", "광고이름", "노출", "클릭", "비용", "전환수", "전환당비용"}
+
 
 def get_client():
     try:
@@ -20,8 +22,7 @@ def get_client():
     return create_client(url, key)
 
 
-def to_supabase_rows(rows, advertiser, channel, extra_event_names=None):
-    extra_event_names = extra_event_names or []
+def to_supabase_rows(rows, advertiser, channel):
     out = []
     for r in rows:
         out.append({
@@ -35,7 +36,7 @@ def to_supabase_rows(rows, advertiser, channel, extra_event_names=None):
             "clicks":         r.get("클릭", 0),
             "cost":           r.get("비용", 0),
             "conversions":    r.get("전환수", 0),
-            "extra_events":   {k: r[k] for k in extra_event_names if k in r},
+            "extra_events":   {k: r[k] for k in r if k not in _BASE_FIELDS},
         })
     return out
 

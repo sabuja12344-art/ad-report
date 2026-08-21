@@ -2,7 +2,7 @@ import requests
 import time
 from urllib.parse import urlsplit, parse_qs
 
-API_VERSION = "v19.0"
+API_VERSION = "v22.0"
 BASE_URL    = f"https://graph.facebook.com/{API_VERSION}"
 
 def _fetch_ads_page(base_url, params, retries=2, backoff=0.7):

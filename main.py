@@ -4,6 +4,7 @@
 """
 
 import os
+import sys
 import yaml
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -43,6 +44,8 @@ def main():
     print(f"  대상 날짜: {yesterday}")
     print("=" * 55)
 
+    has_error = False
+
     for adv in config["advertisers"]:
         name = adv["name"]
         print(f"\n[{name}]")
@@ -65,16 +68,23 @@ def main():
         # 메타
         if adv.get("meta_ad_account_id"):
             print(f"  메타 수집 중...")
-            extra_events = adv.get("meta_extra_events")
             meta_rows = meta_report(
                 adv["meta_ad_account_id"],
                 meta_token,
                 yesterday,
                 conversion_event=adv.get("meta_conversion_event", "purchase"),
                 campaign_exclude=adv.get("meta_campaign_exclude"),
-                extra_events=extra_events,
+                extra_events=adv.get("meta_extra_events"),
             )
             print(f"  → {len(meta_rows)}행")
+
+        # sheet_id 없는 광고주는 시트 기입 skip
+        if not adv.get("sheet_id"):
+            if naver_rows or meta_rows:
+                print(f"  sheet_id 없음, 시트 기입 skip")
+            else:
+                print(f"  수집된 데이터 없음")
+            continue
 
         # 구글 시트 기입 (네이버/메타 섹션에 각각 기입)
         if naver_rows:
@@ -83,6 +93,7 @@ def main():
                 print(f"  구글 시트 기입 완료(네이버): {len(naver_rows)}행")
             except Exception as e:
                 print(f"  [시트 오류-네이버] {e}")
+                has_error = True
 
         if meta_rows:
             try:
@@ -90,6 +101,7 @@ def main():
                 print(f"  구글 시트 기입 완료(메타): {len(meta_rows)}행")
             except Exception as e:
                 print(f"  [시트 오류-메타] {e}")
+                has_error = True
 
         if not naver_rows and not meta_rows:
             print(f"  수집된 데이터 없음")
@@ -97,6 +109,9 @@ def main():
     print("\n" + "=" * 55)
     print("  완료!")
     print("=" * 55)
+
+    if has_error:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

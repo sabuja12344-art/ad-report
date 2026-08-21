@@ -27,3 +27,25 @@ jobs:
           gh secret set META_ACCESS_TOKEN --body "$NEW_TOKEN" --repo ${{ github.repository }}
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: 실패 알림
+        if: failure()
+        env:
+          GMAIL_USER:         ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RUN_URL:            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 << 'PYEOF'
+          import smtplib, os
+          from email.mime.text import MIMEText
+          user = os.environ["GMAIL_USER"]
+          pw   = os.environ["GMAIL_APP_PASSWORD"]
+          url  = os.environ["RUN_URL"]
+          msg  = MIMEText(f"[광고 자동화] 메타 토큰 자동 갱신이 실패했습니다.\n수동으로 토큰을 갱신해야 합니다.\n\n로그 확인: {url}")
+          msg["Subject"] = "[광고 자동화] 메타 토큰 갱신 실패 — 즉시 확인 필요"
+          msg["From"] = user
+          msg["To"]   = user
+          with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
+              s.login(user, pw)
+              s.send_message(msg)
+          PYEOF

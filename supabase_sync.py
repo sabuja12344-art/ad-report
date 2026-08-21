@@ -5,6 +5,7 @@ Supabase 대시보드 동기화
 """
 
 import os
+import sys
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
@@ -40,6 +41,8 @@ def main():
     print(f"  대상 기간: {start_date} ~ {end_date} ({SYNC_DAYS}일)")
     print("=" * 55)
 
+    has_error = False
+
     for adv in config["advertisers"]:
         name = adv["name"]
         print(f"\n[{name}]")
@@ -62,8 +65,6 @@ def main():
 
             if adv.get("meta_ad_account_id"):
                 print(f"  메타 수집 중 ({start_date} ~ {end_date})...")
-                extra_events = adv.get("meta_extra_events")
-                extra_names  = [e["name"] for e in (extra_events or [])]
                 rows = meta_report(
                     adv["meta_ad_account_id"],
                     meta_token,
@@ -71,10 +72,10 @@ def main():
                     end_date,
                     conversion_event=adv.get("meta_conversion_event", "purchase"),
                     campaign_exclude=adv.get("meta_campaign_exclude"),
-                    extra_events=extra_events,
+                    extra_events=adv.get("meta_extra_events"),
                 )
                 print(f"  → {len(rows)}행")
-                db_rows.extend(to_supabase_rows(rows, name, "메타", extra_names))
+                db_rows.extend(to_supabase_rows(rows, name, "메타"))
 
             if db_rows:
                 upsert_rows(sb, db_rows)
@@ -84,10 +85,14 @@ def main():
 
         except Exception as e:
             print(f"  [오류] {name} 동기화 실패 (다른 광고주는 계속 진행): {e}")
+            has_error = True
 
     print("\n" + "=" * 55)
     print("  완료!")
     print("=" * 55)
+
+    if has_error:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
