@@ -117,4 +117,4 @@ def get_report(api_key, secret_key, customer_id, start_date, end_date=None):
 
     except Exception as e:
         print(f"    [네이버 오류] {e}")
-        return []
+        raise

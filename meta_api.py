@@ -142,5 +142,6 @@ def get_report(ad_account_id, access_token, start_date, end_date=None, conversio
 
     except Exception as e:
         print(f"    [메타 오류] 페이지 {page_num}에서 중단: {e} (수집된 행: {len(rows)})")
+        raise
 
     return rows
