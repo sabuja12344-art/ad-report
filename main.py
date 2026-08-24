@@ -54,16 +54,21 @@ def main():
 
         # 네이버 검색광고
         if adv.get("naver_customer_id"):
-            print(f"  네이버 수집 중...")
-            naver_api_key    = os.environ[adv["naver_api_key_env"]] if adv.get("naver_api_key_env") else default_naver_api_key
-            naver_secret_key = os.environ[adv["naver_secret_key_env"]] if adv.get("naver_secret_key_env") else default_naver_secret_key
-            naver_rows = naver_report(
-                naver_api_key,
-                naver_secret_key,
-                adv["naver_customer_id"],
-                yesterday,
-            )
-            print(f"  → {len(naver_rows)}행")
+            key_env = adv.get("naver_api_key_env")
+            sec_env = adv.get("naver_secret_key_env")
+            if key_env and key_env not in os.environ:
+                print(f"  [{key_env}] 환경변수 없음, 네이버 스킵")
+            else:
+                print(f"  네이버 수집 중...")
+                naver_api_key    = os.environ[key_env] if key_env else default_naver_api_key
+                naver_secret_key = os.environ[sec_env] if sec_env else default_naver_secret_key
+                naver_rows = naver_report(
+                    naver_api_key,
+                    naver_secret_key,
+                    adv["naver_customer_id"],
+                    yesterday,
+                )
+                print(f"  → {len(naver_rows)}행")
 
         # 메타
         if adv.get("meta_ad_account_id"):

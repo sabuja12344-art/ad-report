@@ -44,15 +44,25 @@ def main():
     has_error = False
 
     for adv in config["advertisers"]:
+        if not adv.get("sync_supabase", True):
+            continue
+
         name = adv["name"]
         print(f"\n[{name}]")
         db_rows = []
 
         try:
             if adv.get("naver_customer_id"):
+                key_env = adv.get("naver_api_key_env")
+                sec_env = adv.get("naver_secret_key_env")
+                if key_env and key_env not in os.environ:
+                    print(f"  [{key_env}] 환경변수 없음, 네이버 스킵")
+                    adv = {**adv, "naver_customer_id": None}  # 이 루프만 스킵
+                else:
+                    naver_api_key    = os.environ[key_env] if key_env else default_naver_api_key
+                    naver_secret_key = os.environ[sec_env] if sec_env else default_naver_secret_key
+            if adv.get("naver_customer_id"):
                 print(f"  네이버 수집 중 ({start_date} ~ {end_date})...")
-                naver_api_key    = os.environ[adv["naver_api_key_env"]] if adv.get("naver_api_key_env") else default_naver_api_key
-                naver_secret_key = os.environ[adv["naver_secret_key_env"]] if adv.get("naver_secret_key_env") else default_naver_secret_key
                 rows = naver_report(
                     naver_api_key,
                     naver_secret_key,

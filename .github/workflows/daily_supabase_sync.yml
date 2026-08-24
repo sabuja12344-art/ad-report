@@ -20,8 +20,6 @@ jobs:
           _META:    ${{ secrets.META_ACCESS_TOKEN }}
           _NAVER_K: ${{ secrets.NAVER_API_KEY }}
           _NAVER_S: ${{ secrets.NAVER_SECRET_KEY }}
-          _DOWN_K:  ${{ secrets.DOWNTOWNER_NAVER_API_KEY }}
-          _DOWN_S:  ${{ secrets.DOWNTOWNER_NAVER_SECRET_KEY }}
           _SB_URL:  ${{ secrets.SUPABASE_URL }}
           _SB_KEY:  ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
@@ -29,15 +27,13 @@ jobs:
           [ -z "$_META" ]    && MISSING="$MISSING META_ACCESS_TOKEN"
           [ -z "$_NAVER_K" ] && MISSING="$MISSING NAVER_API_KEY"
           [ -z "$_NAVER_S" ] && MISSING="$MISSING NAVER_SECRET_KEY"
-          [ -z "$_DOWN_K" ]  && MISSING="$MISSING DOWNTOWNER_NAVER_API_KEY"
-          [ -z "$_DOWN_S" ]  && MISSING="$MISSING DOWNTOWNER_NAVER_SECRET_KEY"
           [ -z "$_SB_URL" ]  && MISSING="$MISSING SUPABASE_URL"
           [ -z "$_SB_KEY" ]  && MISSING="$MISSING SUPABASE_SERVICE_ROLE_KEY"
           if [ -n "$MISSING" ]; then
             echo "누락된 Secrets:$MISSING"
             exit 1
           fi
-          echo "모든 Secrets 확인 완료"
+          echo "Secrets 확인 완료"
 
       - name: Python 설정
         uses: actions/setup-python@v5
