@@ -56,32 +56,40 @@ def main():
         if adv.get("naver_customer_id"):
             key_env = adv.get("naver_api_key_env")
             sec_env = adv.get("naver_secret_key_env")
-            if key_env and key_env not in os.environ:
+            if key_env and not os.environ.get(key_env):
                 print(f"  [{key_env}] 환경변수 없음, 네이버 스킵")
             else:
-                print(f"  네이버 수집 중...")
-                naver_api_key    = os.environ[key_env] if key_env else default_naver_api_key
-                naver_secret_key = os.environ[sec_env] if sec_env else default_naver_secret_key
-                naver_rows = naver_report(
-                    naver_api_key,
-                    naver_secret_key,
-                    adv["naver_customer_id"],
-                    yesterday,
-                )
-                print(f"  → {len(naver_rows)}행")
+                try:
+                    print(f"  네이버 수집 중...")
+                    naver_api_key    = os.environ[key_env] if key_env else default_naver_api_key
+                    naver_secret_key = os.environ[sec_env] if sec_env else default_naver_secret_key
+                    naver_rows = naver_report(
+                        naver_api_key,
+                        naver_secret_key,
+                        adv["naver_customer_id"],
+                        yesterday,
+                    )
+                    print(f"  → {len(naver_rows)}행")
+                except Exception as e:
+                    print(f"  [네이버 오류] {e}")
+                    has_error = True
 
         # 메타
         if adv.get("meta_ad_account_id"):
-            print(f"  메타 수집 중...")
-            meta_rows = meta_report(
-                adv["meta_ad_account_id"],
-                meta_token,
-                yesterday,
-                conversion_event=adv.get("meta_conversion_event", "purchase"),
-                campaign_exclude=adv.get("meta_campaign_exclude"),
-                extra_events=adv.get("meta_extra_events"),
-            )
-            print(f"  → {len(meta_rows)}행")
+            try:
+                print(f"  메타 수집 중...")
+                meta_rows = meta_report(
+                    adv["meta_ad_account_id"],
+                    meta_token,
+                    yesterday,
+                    conversion_event=adv.get("meta_conversion_event", "purchase"),
+                    campaign_exclude=adv.get("meta_campaign_exclude"),
+                    extra_events=adv.get("meta_extra_events"),
+                )
+                print(f"  → {len(meta_rows)}행")
+            except Exception as e:
+                print(f"  [메타 오류] {e}")
+                has_error = True
 
         # sheet_id 없는 광고주는 시트 기입 skip
         if not adv.get("sheet_id"):
