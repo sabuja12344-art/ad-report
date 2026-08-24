@@ -46,7 +46,9 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: 구글 서비스 계정 키 생성
-        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > google_credentials.json
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        run: echo "$GOOGLE_CREDENTIALS" > google_credentials.json
 
       - name: 광고 데이터 수집
         env:

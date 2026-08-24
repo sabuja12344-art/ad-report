@@ -1,5 +1,5 @@
 requests
-gspread
+gspread>=5.12,<7
 google-auth
 pyyaml
 python-dotenv

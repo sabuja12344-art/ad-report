@@ -1,6 +1,5 @@
 import time
 import gspread
-from google.oauth2.service_account import Credentials
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -15,8 +14,7 @@ def _col_letter(n):
     return result
 
 def get_client(json_key_path):
-    creds = Credentials.from_service_account_file(json_key_path, scopes=SCOPES)
-    return gspread.authorize(creds)
+    return gspread.service_account(filename=json_key_path, scopes=SCOPES)
 
 def _build_columns(rows):
     base = ["날짜", "캠페인이름", "광고그룹(세트)이름", "광고이름", "노출", "클릭", "비용", "전환수", "전환당비용"]
@@ -36,8 +34,7 @@ def _with_retry(fn, retries=4):
                 raise
 
 def get_client_from_info(credentials_info):
-    creds = Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
-    return gspread.authorize(creds)
+    return gspread.service_account_from_dict(credentials_info, scopes=SCOPES)
 
 def read_leads(client, sheet_id, tab_name="시트1"):
     ws = _with_retry(lambda: client.open_by_key(sheet_id).worksheet(tab_name))
@@ -75,4 +72,4 @@ def append_rows(client, sheet_id, tab_name, rows, section_keyword="메타", colu
 
     columns = columns or _build_columns(rows)
     data    = [[row.get(col, "") for col in columns] for row in rows]
-    _with_retry(lambda: ws.update(range_name, data, value_input_option="USER_ENTERED"))
+    _with_retry(lambda: ws.update(values=data, range_name=range_name, value_input_option="USER_ENTERED"))
