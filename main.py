@@ -29,8 +29,9 @@ def main():
     meta_token                = os.environ["META_ACCESS_TOKEN"]
     google_json      = os.environ.get("GOOGLE_JSON_PATH", "google_credentials.json")
 
-    # 어제 날짜 (KST 기준 - GitHub Actions 서버는 UTC라서 명시적으로 지정해야 함)
-    yesterday = (datetime.now(KST) - timedelta(days=1)).strftime("%Y-%m-%d")
+    # 최근 3일 (어제~3일 전) — 하루 실패해도 다음 실행에서 자동 복구
+    end_date   = (datetime.now(KST) - timedelta(days=1)).strftime("%Y-%m-%d")
+    start_date = (datetime.now(KST) - timedelta(days=3)).strftime("%Y-%m-%d")
 
     # 광고주 설정
     with open("config.yaml", encoding="utf-8") as f:
@@ -41,7 +42,7 @@ def main():
 
     print("=" * 55)
     print(f"  광고 보고서 수집  {datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  대상 날짜: {yesterday}")
+    print(f"  대상 기간: {start_date} ~ {end_date}")
     print("=" * 55)
 
     has_error = False
@@ -67,7 +68,8 @@ def main():
                         naver_api_key,
                         naver_secret_key,
                         adv["naver_customer_id"],
-                        yesterday,
+                        start_date,
+                        end_date,
                     )
                     print(f"  → {len(naver_rows)}행")
                 except Exception as e:
@@ -81,7 +83,8 @@ def main():
                 meta_rows = meta_report(
                     adv["meta_ad_account_id"],
                     meta_token,
-                    yesterday,
+                    start_date,
+                    end_date,
                     conversion_event=adv.get("meta_conversion_event", "purchase"),
                     campaign_exclude=adv.get("meta_campaign_exclude"),
                     extra_events=adv.get("meta_extra_events"),

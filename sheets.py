@@ -66,6 +66,14 @@ def append_rows(client, sheet_id, tab_name, rows, section_keyword="메타", colu
             break
 
     col_vals = _with_retry(lambda: ws.col_values(start_col))
+
+    # 이미 시트에 있는 날짜는 스킵 (중복 방지 + 재실행 안전)
+    existing_dates = {v.strip() for v in col_vals if v and len(v.strip()) == 10 and v.strip()[4:5] == "-"}
+    rows = [r for r in rows if str(r.get("날짜", "")) not in existing_dates]
+    if not rows:
+        print(f"    [스킵] 해당 날짜 데이터가 이미 시트에 존재함")
+        return
+
     last_row  = len(col_vals)
     next_row  = last_row + 1
     range_name = f"{_col_letter(start_col)}{next_row}"
