@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Secrets 검증
+      - name: Secrets 검증 및 Meta 토큰 유효성 확인
         env:
           _META:    ${{ secrets.META_ACCESS_TOKEN }}
           _NAVER_K: ${{ secrets.NAVER_API_KEY }}
@@ -34,6 +34,16 @@ jobs:
             exit 1
           fi
           [ -z "$_DOWN_K" ] && echo "경고: DOWNTOWNER_NAVER_API_KEY 없음 — 다운타우너 네이버 데이터 스킵됨"
+
+          # Meta 토큰 만료 사전 감지 (만료 시 즉시 실패 → 이메일 알림 트리거)
+          TOKEN_CHECK=$(curl -s "https://graph.facebook.com/v22.0/me?access_token=$_META")
+          if echo "$TOKEN_CHECK" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if 'id' in d else 1)" 2>/dev/null; then
+            echo "Meta 토큰 유효"
+          else
+            echo "Meta 토큰 만료 또는 무효: $TOKEN_CHECK"
+            exit 1
+          fi
+
           echo "Secrets 확인 완료"
 
       - name: Python 설정
