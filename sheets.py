@@ -86,3 +86,4 @@ def append_rows(client, sheet_id, tab_name, rows, section_keyword="메타", colu
     columns = columns or _build_columns(rows)
     data    = [[row.get(col, "") for col in columns] for row in rows]
     _with_retry(lambda: ws.update(values=data, range_name=range_name, value_input_option="USER_ENTERED"))
+    return len(rows)

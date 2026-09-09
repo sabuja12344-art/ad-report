@@ -113,16 +113,18 @@ def main():
         # 구글 시트 기입 (네이버/메타 섹션에 각각 기입)
         if naver_rows:
             try:
-                append_rows(gc, adv["sheet_id"], adv["raw_tab"], naver_rows, section_keyword="네이버", columns=NAVER_SHEET_COLUMNS)
-                print(f"  구글 시트 기입 완료(네이버): {len(naver_rows)}행")
+                written = append_rows(gc, adv["sheet_id"], adv["raw_tab"], naver_rows, section_keyword="네이버", columns=NAVER_SHEET_COLUMNS)
+                if written:
+                    print(f"  구글 시트 기입 완료(네이버): {written}행")
             except Exception as e:
                 print(f"  [시트 오류-네이버] {e}")
                 has_error = True
 
         if meta_rows:
             try:
-                append_rows(gc, adv["sheet_id"], adv["raw_tab"], meta_rows, section_keyword="메타")
-                print(f"  구글 시트 기입 완료(메타): {len(meta_rows)}행")
+                written = append_rows(gc, adv["sheet_id"], adv["raw_tab"], meta_rows, section_keyword="메타")
+                if written:
+                    print(f"  구글 시트 기입 완료(메타): {written}행")
             except Exception as e:
                 print(f"  [시트 오류-메타] {e}")
                 has_error = True
