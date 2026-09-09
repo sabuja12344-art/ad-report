@@ -35,15 +35,19 @@ def _get(path, api_key, secret_key, customer_id, params=None):
 
 def _get_stats(api_key, secret_key, customer_id, ids, date):
     path = "/stats"
+    # ids를 반복 파라미터로 전송 (URL 길이 초과 방지 + Naver API 정규 형식)
+    # requests에 list of tuples 전달 시 ids=id1&ids=id2&... 형식으로 전송됨
+    params = [
+        ("ids",           id_) for id_ in ids
+    ] + [
+        ("fields",        json.dumps(["impCnt", "clkCnt", "salesAmt", "ccnt", "purchaseCcnt", "purchaseConvAmt"])),
+        ("timeRange",     json.dumps({"since": date, "until": date})),
+        ("timeIncrement", "day"),
+    ]
     r = requests.get(
         BASE_URL + path,
         headers=_headers("GET", path, api_key, secret_key, customer_id),
-        params={
-            "ids":           ",".join(ids),
-            "fields":        json.dumps(["impCnt", "clkCnt", "salesAmt", "ccnt", "purchaseCcnt", "purchaseConvAmt"]),
-            "timeRange":     json.dumps({"since": date, "until": date}),
-            "timeIncrement": "day",
-        },
+        params=params,
         timeout=30,
     )
     r.raise_for_status()
@@ -73,15 +77,19 @@ def get_report(api_key, secret_key, customer_id, start_date, end_date=None):
         if not adgroup_map:
             return []
 
-        # 3. 광고그룹 단위 통계 (네이버 다건조회 API는 timeIncrement로 일별 분리가 안 돼서
-        #    날짜별로 호출하되, 목록 조회는 위에서 이미 끝냈으므로 하루당 호출 1번으로 줄어든다)
+        # 3. 광고그룹 단위 통계 (날짜별 호출, 100개 초과 시 청크 분할)
+        all_ids = list(adgroup_map)
+        print(f"    광고그룹 수: {len(all_ids)}")
         rows = []
         cur = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
         while cur <= end:
             d = cur.strftime("%Y-%m-%d")
             try:
-                stats = _get_stats(api_key, secret_key, customer_id, list(adgroup_map), d)
+                stats = []
+                for chunk_start in range(0, len(all_ids), 100):
+                    chunk = all_ids[chunk_start:chunk_start + 100]
+                    stats.extend(_get_stats(api_key, secret_key, customer_id, chunk, d))
             except Exception as e:
                 print(f"    [네이버 오류] {d}: {e}")
                 cur += timedelta(days=1)

@@ -61,7 +61,7 @@ def main():
                 print(f"  [{key_env}] 환경변수 없음, 네이버 스킵")
             else:
                 try:
-                    print(f"  네이버 수집 중...")
+                    print(f"  네이버 수집 중... (customer_id={adv['naver_customer_id']})")
                     naver_api_key    = os.environ[key_env] if key_env else default_naver_api_key
                     naver_secret_key = os.environ[sec_env] if sec_env else default_naver_secret_key
                     naver_rows = naver_report(
@@ -71,7 +71,11 @@ def main():
                         start_date,
                         end_date,
                     )
-                    print(f"  → {len(naver_rows)}행")
+                    if len(naver_rows) == 0:
+                        print(f"  [경고] 네이버 수집 결과 0행 — API 응답은 성공이나 데이터 없음")
+                        has_error = True
+                    else:
+                        print(f"  → 네이버 {len(naver_rows)}행 수집")
                 except Exception as e:
                     print(f"  [네이버 오류] {e}")
                     has_error = True
@@ -79,7 +83,7 @@ def main():
         # 메타
         if adv.get("meta_ad_account_id"):
             try:
-                print(f"  메타 수집 중...")
+                print(f"  메타 수집 중... (account={adv['meta_ad_account_id']})")
                 meta_rows = meta_report(
                     adv["meta_ad_account_id"],
                     meta_token,
@@ -89,7 +93,11 @@ def main():
                     campaign_exclude=adv.get("meta_campaign_exclude"),
                     extra_events=adv.get("meta_extra_events"),
                 )
-                print(f"  → {len(meta_rows)}행")
+                if len(meta_rows) == 0:
+                    print(f"  [경고] 메타 수집 결과 0행 — API 응답은 성공이나 데이터 없음")
+                    has_error = True
+                else:
+                    print(f"  → 메타 {len(meta_rows)}행 수집")
             except Exception as e:
                 print(f"  [메타 오류] {e}")
                 has_error = True

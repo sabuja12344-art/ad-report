@@ -68,11 +68,16 @@ def append_rows(client, sheet_id, tab_name, rows, section_keyword="메타", colu
     col_vals = _with_retry(lambda: ws.col_values(start_col))
 
     # 이미 시트에 있는 날짜는 스킵 (중복 방지 + 재실행 안전)
-    existing_dates = {v.strip() for v in col_vals if v and len(v.strip()) == 10 and v.strip()[4:5] == "-"}
-    rows = [r for r in rows if str(r.get("날짜", "")) not in existing_dates]
-    if not rows:
-        print(f"    [스킵] 해당 날짜 데이터가 이미 시트에 존재함")
-        return
+    # 키워드를 못 찾아 start_col=1로 기본값이 된 경우엔 중복 체크 스킵 (잘못된 열 참조 방지)
+    keyword_found = any(section_keyword in str(v) for v in first_row)
+    if keyword_found:
+        existing_dates = {v.strip() for v in col_vals if v and len(v.strip()) == 10 and v.strip()[4:5] == "-"}
+        rows = [r for r in rows if str(r.get("날짜", "")) not in existing_dates]
+        if not rows:
+            print(f"    [스킵] 해당 날짜 데이터가 이미 시트에 존재함")
+            return
+    else:
+        print(f"    [경고] 시트 1행에서 '{section_keyword}' 섹션 헤더를 찾지 못함 — col 1부터 기입")
 
     last_row  = len(col_vals)
     next_row  = last_row + 1
