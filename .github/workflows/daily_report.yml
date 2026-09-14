@@ -37,13 +37,12 @@ jobs:
           fi
           [ -z "$_DOWN_K" ] && echo "경고: DOWNTOWNER_NAVER_API_KEY 없음 — 다운타우너 네이버 데이터 스킵됨"
 
-          # Meta 토큰 만료 사전 감지 (만료 시 즉시 실패 → 이메일 알림 트리거)
+          # Meta 토큰 사전 확인 (만료여도 중단 안 함 — main.py에서 개별 오류 처리)
           TOKEN_CHECK=$(curl -s "https://graph.facebook.com/v22.0/me?access_token=$_META")
           if echo "$TOKEN_CHECK" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if 'id' in d else 1)" 2>/dev/null; then
             echo "Meta 토큰 유효"
           else
-            echo "Meta 토큰 만료 또는 무효: $TOKEN_CHECK"
-            exit 1
+            echo "경고: Meta 토큰 만료 또는 무효 — 수집 단계에서 오류 확인 필요"
           fi
 
           echo "Secrets 확인 완료"
