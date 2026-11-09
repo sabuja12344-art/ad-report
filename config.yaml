@@ -24,7 +24,7 @@ advertisers:
   - name: 샐러디
     sync_sheets: true
     sync_supabase: true
-    naver_customer_id: 1167625
+    naver_customer_id: null           # 네이버 중단 (2026-11, 재개 시 1167625)
     meta_ad_account_id: "1080197689976095"
     meta_conversion_event: "offsite_conversion.fb_pixel_complete_registration"
     meta_campaign_exclude:
